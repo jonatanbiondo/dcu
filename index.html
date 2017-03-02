@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>DCU TP Biondo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: rgb(200,200,200);
+				margin: 0px;
+				overflow: hidden;
+			}
+ 
+			a {
+				color: #ffffff;
+			}
+		</style>
+	</head>
+	<body>
+		<div style="color:white;" id="info">-</div>
+		<div id="container">
+			
+		</div>
+
+
+		 
+
+		<script src="three.js/build/three.js"></script>
+		<script src="three.js/renderers/Projector.js"></script>
+		<script src="three.js/renderers/CanvasRenderer.js"></script>
+		<script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js"></script>
+  		<script src="http://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+		<script src="bower_components/leapjs/leap-0.6.4.js"></script>
+		<script src="https://js.leapmotion.com/leap-plugins-0.1.12.js"></script>
+			<script src="http://leapmotion.github.io/leapjs-plugins/main/bone-hand/lib/OrbitControls.js"></script>
+
+
+
+		<script>
+
+		$(document).ready(function() {
+
+
+			var camera, scene, renderer;
+
+			var texture_placeholder,
+			isUserInteracting = false,
+			onMouseDownMouseX = 0, onMouseDownMouseY = 0,
+			lon = 90, onMouseDownLon = 0,
+			lat = 0, onMouseDownLat = 0,
+			phi = 0, theta = 0,
+			onPointerDownPointerX = 0, onPointerDownPointerY=0;
+			moveStep = 30;
+			target = new THREE.Vector3();
+
+			init();
+			animate();
+
+			/*
+			* Inicializacion del canvas donde se dibuja la escena
+			*/
+			function init() {
+
+				var container, mesh;
+
+				container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 70, window.innerWidth / window.innerHeight, 1, 1100 );
+
+				scene = new THREE.Scene();
+
+				texture_placeholder = document.createElement( 'canvas' );
+				texture_placeholder.width = 128;
+				texture_placeholder.height = 128;
+
+				var context = texture_placeholder.getContext( '2d' );
+				context.fillStyle = 'rgb( 200, 200, 200 )';
+				context.fillRect( 0, 0, texture_placeholder.width, texture_placeholder.height );
+
+				var materials = [
+
+					loadTexture( 'textures/px.jpg' ), // right
+					loadTexture( 'textures/nx.jpg' ), // left
+					loadTexture( 'textures/py.jpg' ), // top
+					loadTexture( 'textures/ny.jpg' ), // bottom
+					loadTexture( 'textures/pz.jpg' ), // back
+					loadTexture( 'textures/nz.jpg' )  // front
+
+				];
+
+				mesh = new THREE.Mesh( new THREE.BoxGeometry( 300, 300, 300, 9,9,9 ), new THREE.MultiMaterial( materials ) );
+				mesh.scale.x = - 1;
+				scene.add( mesh );
+
+				// inicializacion de cuerpos en el espacio
+				var geometry = new THREE.SphereGeometry( 5, 32, 32 );
+				var material = new THREE.MeshBasicMaterial( {color: 0xffffff} );
+				var sphere = new THREE.Mesh( geometry, material );		 
+				sphere.position.x = 140;
+				sphere.position.y = -50;
+				sphere.position.z = -110;	
+				scene.add( sphere );
+			 
+			 	var geometry1 = new THREE.SphereGeometry( 3, 16, 16 );
+			 	var sphere1 = new THREE.Mesh( geometry1,new THREE.MeshBasicMaterial( {color: 0x0000FF} ) );
+			 	sphere1.position.x = 145;			
+				sphere1.position.y = -40;
+				sphere1.position.z = 124;							
+				scene.add(sphere1);
+
+				var geometry2 = new THREE.SphereGeometry( 3, 16, 16 );
+			 	var sphere2 = new THREE.Mesh( geometry2, new THREE.MeshBasicMaterial( {color: 0xFF0F0F} ) );	
+				sphere2.position.x = 0;			
+				sphere2.position.y = -40;
+				sphere2.position.z = 140;	
+				scene.add(sphere2);
+
+
+				var geometry3 = new THREE.SphereGeometry( 2, 16,16  );
+			 	var sphere3 = new THREE.Mesh( geometry3, new THREE.MeshBasicMaterial( {color: 0x0FFE0F} ) );	
+				sphere3.position.x = -140;			
+				sphere3.position.y = -30;
+				sphere3.position.z = 0;	
+				scene.add(sphere3);
+
+
+				var geometry4 = new THREE.SphereGeometry( 4, 16, 16 );
+			 	var sphere4 = new THREE.Mesh( geometry4, new THREE.MeshBasicMaterial( {color: 0x0000Ff} ));	
+				sphere4.position.x = 0;			
+				sphere4.position.y = -25;
+				sphere4.position.z = -140;	
+				scene.add(sphere4);		 
+		 
+				 //posicion en el eje y de la camara 
+				 //centro de la escena y = 0
+				 // piso y = -150
+				 // techo y = 150
+				camera.position.y = -130;
+			 
+
+				renderer = new THREE.CanvasRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight-20 );
+				container.appendChild( renderer.domElement );
+
+				document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.addEventListener( 'mouseup', onDocumentMouseUp, false );
+				document.addEventListener( 'wheel', onDocumentMouseWheel, false );  
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+			function loadTexture( path ) {
+				var texture = new THREE.Texture( texture_placeholder );
+				var material = new THREE.MeshBasicMaterial( { map: texture, overdraw: 0.5 } );
+				var image = new Image();
+				image.onload = function () {
+					texture.image = this;
+					texture.needsUpdate = true;
+				};
+				image.src = path;
+				return material;
+			}
+
+			function onDocumentMouseDown( event ) {
+				event.preventDefault();
+				isUserInteracting = true;
+
+				// posicion donde hace click
+				onPointerDownPointerX = event.clientX;
+				onPointerDownPointerY = event.clientY;
+
+				// lon y lat actuales 
+				onPointerDownLon = lon;
+				onPointerDownLat = lat;
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				if ( isUserInteracting === true ) {
+
+					lon = ( onPointerDownPointerX - event.clientX ) * 0.1 + onPointerDownLon;
+					lat = ( event.clientY - onPointerDownPointerY ) * 0.1 + onPointerDownLat;
+					console.log({lon:lon, lat: lat});
+				}
+
+			}
+
+			function onDocumentMouseUp( event ) {
+				isUserInteracting = false;
+
+			}
+
+			function onDocumentMouseWheel( event ) {
+				console.log(event.deltaY);
+				console.log((camera.fov  + event.deltaY * 0.05))
+				 
+				var prev = camera.fov;
+				camera.fov += event.deltaY * 0.05;
+				if(camera.fov > 0 && camera.fov <= 71){
+					camera.updateProjectionMatrix();
+				}else{
+					camera.fov = prev;
+				} 
+			}
+
+			/*
+			* Actualiza el Campo de vision de la camara 
+			* según el delta calculado anteriormente
+			*/
+			function onTwoHandGrabbingUpdate( delta ) {
+				 
+				console.log((camera.fov  + delta * 0.05))
+				 
+				var prev = camera.fov;
+				camera.fov += delta * 0.05;
+				if(camera.fov > 0 && camera.fov <= 71){
+					camera.updateProjectionMatrix();
+				}else{
+					camera.fov = prev;
+				} 
+			}
+
+ 
+ 
+			function animate() {
+				requestAnimationFrame( animate );
+				update();
+			}
+
+			function update() {				
+
+				//saque de un ejemplo, es donde me falta entender mas para poder 
+				// mapear correctamente los objetos con el dispositivo
+				lat = Math.max( - 85, Math.min( 85, lat ) );
+				phi = THREE.Math.degToRad( 90 - lat );
+				theta = THREE.Math.degToRad( lon );
+
+				target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+				target.y = 500 * Math.cos( phi );
+				target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+ 
+
+				camera.lookAt( target );
+				renderer.render( scene, camera );
+			}
+
+
+
+
+	 
+	 		 
+		    // Setup Leap loop with frame callback function
+			var controllerOptions = {};
+
+			var oneHandGrab =  false;
+			var twoHandsGrabbing = false;
+			var grabingHands = 0;
+		 	var handActiveGrab = [];
+		 	var onTwoHandsGrabbingdistance = 0;
+
+
+		 		function onOneHandGrab (hand) {
+		 			//grabbing 
+		 			if(!oneHandGrab ){
+		 				if(hand.grabStrength > 0.8 ){
+			 				oneHandGrab = true;										 
+							console.log("cierra la mano")
+							$("#info").text("Mano Cerrada");
+							// posicion donde hace click
+							onPointerDownPointerX = hand.stabilizedPalmPosition[0]
+							onPointerDownPointerY =  hand.stabilizedPalmPosition[1];
+
+							console.log({onPointerDownPointerX, onPointerDownPointerY});
+							// lon y lat actuales 
+							onPointerDownLon = lon;
+							onPointerDownLat = lat;
+
+			 			}else{
+			 				oneHandGrab = false;
+			 			}
+		 			}else{
+						//
+						var a =  hand.stabilizedPalmPosition[0];
+						var b =  hand.stabilizedPalmPosition[1];						 
+						console.log("mano ya cerrada")
+						$("#info").text("Mano Cerrada");
+
+
+						//actualiza la lon y lat de la imagen para que el metodo update lo refleje
+						lon = ( onPointerDownPointerX -a ) * 0.2 + onPointerDownLon;
+						lat = ( b - onPointerDownPointerY ) * 0.2 + onPointerDownLat;
+						 
+		 			}
+		 			
+		 		}
+
+		 		/****************************************************
+				* Se ejecuta cuando se detectan dos manos cerradas,
+				* calcula la diferencia de la distancia entre las dos manos, del frame actual con un * frame mas antiguo, para determinar si hace zoom in o zoom out,
+				* 
+		 		******************************************************/
+		 		function onTwoHandGrab (hands) {				 			
+		 			console.log("dos manos cerradas");
+		 			$("#info").text("Dos Manos Cerrada");
+		 			oneHandGrab = false;	 	
+
+	 				//calculo la distancia actual para calcular el delta 
+	 				// las manos ya estaban cerradas 
+					//calculo distancia ACTUAL entre manos
+	 				var x1 = hands[0].stabilizedPalmPosition[0];
+	 				var y1 = hands[0].stabilizedPalmPosition[1];
+	 				var x2 = hands[1].stabilizedPalmPosition[0];
+	 				var y2 = hands[1].stabilizedPalmPosition[1];
+
+	 				var distance = Math.sqrt(Math.pow(x2-x1,2) + Math.pow(y2-y1,2));
+
+
+	 				//distancia entre manos en frame mas antiguo
+	 				var oldHand1 = controller.frame(5).hand( hands[0].id)
+	 				var oldHand2 = controller.frame(5).hand( hands[1].id)
+
+	 				if(oldHand1.stabilizedPalmPosition==undefined || oldHand2.stabilizedPalmPosition==undefined){
+	 					return;
+	 				}	 				
+	 				var x21 = oldHand1.stabilizedPalmPosition[0];
+	 				var y21 = oldHand1.stabilizedPalmPosition[1];
+	 				var x22 = oldHand2.stabilizedPalmPosition[0];
+	 				var y22 = oldHand2.stabilizedPalmPosition[1];
+
+	 				var distance2 = Math.sqrt(Math.pow(x22-x21,2) + Math.pow(y22-y21,2));
+
+	 				console.log(distance - distance2 ); 				
+	 				var zoom ;
+	 				if(Math.abs(distance -  distance2) > 25){ // diferencia en milimetros
+	 					zoom = ((distance - distance2) > 0)?50:-50
+	 				}	 				
+	 				onTwoHandGrabbingUpdate(zoom);
+		 		}
+
+		 		function onNoHandGrab (argument) {
+		 			 oneHandGrab = false;
+		 			 twoHandsGrabbing = false;			 
+		 		}
+
+
+			var controller = Leap.loop(controllerOptions, function(frame) {			
+
+		 		//==========================================================
+		 		// main del loop controller
+			 		 
+				handActiveGrab = []; // manos cerradas
+				if(frame.hands.length > 0 ){
+					for (var i = 0; i < frame.hands.length; i++) {
+						if(frame.hands[i] !== undefined && frame.hands[i].grabStrength > 0.8){		
+							handActiveGrab.push(frame.hands[i]);
+						}							
+					}
+
+					if(handActiveGrab.length == 1) {
+						console.log(handActiveGrab);
+						onOneHandGrab(handActiveGrab.pop())
+					}else if (handActiveGrab.length == 2){
+						onTwoHandGrab(handActiveGrab);
+					}else if(handActiveGrab.length == 0){
+						onNoHandGrab();
+					}else{
+						console.log("mas de dos mano ");
+					}
+	            }else{
+	            	onNoHandGrab();
+	            }
+
+				
+
+			})// end Leap Loop Crontroller
+			.use('handEntry')
+			.on('handFound', function(hand){
+			   console.log("mano encontrada");
+			   $("#info").text("Mano encontrada")
+			})
+			.on('handLost', function (hand) {
+				  console.log("mano perdida");
+			   $("#info").text("Mano perdida")
+			})
+			.on('gesture', function (gesture) {
+				if(gesture.type == 'circle'){
+					//aumentar el punto de vision
+					console.log('circle gesture');
+					
+				}
+			})
+			.on('deviceDisconnected', function(){
+			    console.log("Device disconnect event");
+			});
+
+				   
+		})
+
+
+		</script>
+	</body>
+</html>
